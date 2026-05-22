@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Group Chat - Local</title>
+  <style>
+:root {
+  --bg: #f4f6f8;
+  --panel: #ffffff;
+  --text: #17202a;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --primary: #126b4f;
+  --primary-dark: #0b513b;
+  --bubble-user: #126b4f;
+  --bubble-ai: #ffffff;
+  --danger: #b91c1c;
+  --shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans JP", "PingFang SC", "Hiragino Sans", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100dvh;
+  overflow: hidden;
+}
+.app {
+  display: grid;
+  grid-template-columns: 250px minmax(420px, 1fr) 330px;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.sidebar, .settings {
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  height: 100dvh;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.settings { border-right: none; border-left: 1px solid var(--line); }
+.brand { padding: 22px 18px 14px; border-bottom: 1px solid var(--line); }
+.brand h1 { margin: 0 0 6px; font-size: 24px; letter-spacing: -0.03em; }
+.brand p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.section { padding: 16px; }
+.section-title {
+  font-size: 12px; color: var(--muted); margin: 0 0 10px;
+  font-weight: 700; letter-spacing: 0.08em;
+}
+.room-card {
+  padding: 13px 14px; border-radius: 16px; background: #eff6f3;
+  border: 1px solid #d7eee5; margin-bottom: 10px;
+}
+.room-card strong { display: block; font-size: 15px; margin-bottom: 4px; }
+.room-card span { display: block; color: var(--muted); font-size: 12px; }
+.agent-chip {
+  display: flex; align-items: center; gap: 10px; padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.avatar {
+  width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+  background: #e8f3ef; color: var(--primary); font-weight: 800; flex: 0 0 auto;
+}
+.agent-chip div:last-child { min-width: 0; }
+.agent-chip strong { display: block; font-size: 14px; }
+.agent-chip span {
+  display: block; font-size: 12px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.main {
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
+  height: 100dvh; overflow: hidden;
+}
+.topbar {
+  height: 70px; flex: 0 0 70px; display: flex; align-items: center;
+  justify-content: space-between; gap: 12px; padding: 0 22px;
+  background: rgba(255,255,255,0.86); border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(14px);
+}
+.topbar h2 { margin: 0; font-size: 18px; }
+.topbar small { color: var(--muted); }
+.messages {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding: 22px; scroll-behavior: smooth;
+}
+.empty {
+  height: 100%; display: grid; place-items: center; text-align: center; color: var(--muted);
+}
+.empty-card {
+  max-width: 560px; background: var(--panel); border: 1px solid var(--line);
+  box-shadow: var(--shadow); border-radius: 24px; padding: 30px;
+}
+.empty-card h3 { color: var(--text); margin-top: 0; font-size: 22px; }
+.empty-card code { background: #f3f4f6; padding: 3px 6px; border-radius: 8px; }
+.msg { display: flex; gap: 10px; margin-bottom: 18px; align-items: flex-start; }
+.msg.user { flex-direction: row-reverse; }
+.bubble-wrap { max-width: min(760px, 76%); }
+.sender { font-size: 12px; color: var(--muted); margin: 0 0 5px 4px; }
+.msg.user .sender { text-align: right; margin-right: 4px; }
+.bubble {
+  padding: 13px 15px; border-radius: 18px; line-height: 1.65; white-space: pre-wrap;
+  word-break: break-word; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  border: 1px solid var(--line); background: var(--bubble-ai);
+}
+.msg.user .bubble { color: white; background: var(--bubble-user); border-color: var(--bubble-user); }
+.composer {
+  flex: 0 0 auto; padding: 12px 22px max(14px, env(safe-area-inset-bottom));
+  background: rgba(255,255,255,0.96); border-top: 1px solid var(--line);
+}
+.hint { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.mention {
+  border: 1px solid #cfe8dd; background: #f0faf6; color: var(--primary-dark);
+  border-radius: 999px; padding: 5px 10px; font-size: 12px; cursor: pointer;
+}
+.input-row { display: flex; gap: 10px; align-items: flex-end; }
+textarea {
+  width: 100%; min-height: 52px; max-height: 160px; resize: vertical;
+  border: 1px solid var(--line); border-radius: 18px; padding: 13px 15px;
+  font-size: 15px; line-height: 1.5; outline: none; background: white;
+}
+textarea:focus, input:focus, select:focus {
+  border-color: #9bcfbd; box-shadow: 0 0 0 4px rgba(18,107,79,0.08);
+}
+button {
+  border: none; border-radius: 14px; padding: 12px 16px; cursor: pointer;
+  font-weight: 700; background: #eef2f7; color: var(--text);
+}
+button.primary { background: var(--primary); color: white; min-width: 86px; }
+button.primary:hover { background: var(--primary-dark); }
+button.danger { color: var(--danger); background: #fee2e2; }
+button.small { padding: 8px 10px; font-size: 12px; border-radius: 10px; }
+.settings h3 { margin: 0; font-size: 18px; }
+.form-card {
+  border: 1px solid var(--line); border-radius: 18px; padding: 14px;
+  margin-bottom: 14px; background: #fff;
+}
+label {
+  display: block; font-size: 12px; font-weight: 700; color: #374151; margin: 10px 0 6px;
+}
+input, select {
+  width: 100%; border: 1px solid var(--line); border-radius: 12px;
+  padding: 10px 11px; font-size: 14px; outline: none; background: white;
+}
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.status { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 18px; }
+.loading {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--primary); margin-right: 6px; animation: pulse 1s infinite ease-in-out;
+}
+@keyframes pulse {
+  0%, 100% { opacity: .25; transform: scale(.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+@media (max-width: 980px) {
+  body { overflow: hidden; }
+  .app {
+    grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; height: 100dvh;
+  }
+  .sidebar, .settings {
+    height: auto; max-height: 28dvh; border: none; border-bottom: 1px solid var(--line);
+  }
+  .main { height: auto; min-height: 0; }
+  .bubble-wrap { max-width: 86%; }
+}
+</style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>AI群聊</h1>
+        <p>A local tool. API keys and chat history are saved only in this browser.</p>
+      </div>
+      <div class="section">
+        <p class="section-title">Current room</p>
+        <div class="room-card">
+          <strong>Default room</strong>
+          <span>Mention an AI with @ to make it reply. Every AI can read the group context.</span>
+        </div>
+      </div>
+      <div class="section">
+        <p class="section-title">Members</p>
+        <div id="agentList"></div>
+      </div>
+      <div class="section">
+        <p class="section-title">Local actions</p>
+        <div class="btn-row">
+          <button class="small" id="exportBtn">Export Markdown</button>
+          <button class="small danger" id="clearBtn">Clear chat</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h2>Default room</h2>
+          <small>Type @chatgpt / @deepseek / @claude to trigger an AI</small>
+        </div>
+        <button class="small" id="roundBtn">Discuss with all</button>
+      </header>
+
+      <div class="messages" id="messages"></div>
+
+      <div class="composer">
+        <div class="hint" id="mentionButtons"></div>
+        <div class="input-row">
+          <textarea id="input" placeholder="Example: @chatgpt help me design the first version of this product. Enter to send, Shift+Enter for newline."></textarea>
+          <button class="primary" id="sendBtn">Send</button>
+        </div>
+        <div class="status" id="status"></div>
+      </div>
+    </main>
+
+    <aside class="settings">
+      <div class="section">
+        <h3>AI member settings</h3>
+        <p style="color: var(--muted); font-size: 13px; line-height: 1.6;">The first version has 3 default members. You can edit names, models, API keys, and roles.</p>
+        <div id="agentForms"></div>
+        <div class="btn-row">
+          <button class="primary" id="saveAgentsBtn">Save settings</button>
+        </div>
+        <p class="status" id="saveStatus"></p>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+const I18N = {"lang": "en", "title": "AI Group Chat - Local", "brandDesc": "A local tool. API keys and chat history are saved only in this browser.", "currentRoom": "Current room", "defaultRoom": "Default room", "roomDesc": "Mention an AI with @ to make it reply. Every AI can read the group context.", "members": "Members", "localOps": "Local actions", "export": "Export Markdown", "clear": "Clear chat", "topHint": "Type @chatgpt / @deepseek / @claude to trigger an AI", "round": "Discuss with all", "settingsTitle": "AI member settings", "settingsDesc": "The first version has 3 default members. You can edit names, models, API keys, and roles.", "trigger": "Trigger name", "display": "Display name", "provider": "Provider", "model": "Model", "apiKey": "API Key", "apiKeyPH": "Saved only in this browser", "role": "Role", "rolePH": "This AI's responsibility in the room", "save": "Save settings", "send": "Send", "placeholder": "Example: @chatgpt help me design the first version of this product. Enter to send, Shift+Enter for newline.", "emptyTitle": "Put AIs in one room and mention them directly", "empty1": "Example:", "emptyEx1": "@chatgpt help me draft a plan", "empty2": "Then continue:", "emptyEx2": "@claude what do you think is wrong with ChatGPT's answer?", "empty3": "Every AI can read the previous group conversation. No copy and paste.", "me": "Me", "system": "System", "noMention": "Please start with @chatgpt / @deepseek / @claude to choose an AI.", "noText": "Please type your message after the @ mention.", "thinking": "{name} is replying...", "failed": "Request failed. Details are shown in the chat.", "noKey": "{name} does not have an API Key yet.", "noContent": "No content returned.", "unsupported": "Unsupported provider: {provider}", "saved": "Saved to this browser.", "confirmClear": "Clear the current chat history? API Key settings will not be deleted.", "roundNeed": "Type a topic first, then click “Discuss with all”.", "roundUser": "[Discuss with all] {text}", "roundThinking": "{name} is joining the discussion...", "roundDone": "Discussion completed.", "roundFailed": "Discussion stopped. Details are shown in the chat.", "roundPrompt": "{text}\n\nPlease speak based on the previous group conversation. If other AIs have already spoken, critique, add to, or correct them instead of simply repeating.", "downloadName": "AI-Group-Chat", "sysPrompt": "You are speaking inside a local group chat tool called “AI Group Chat”.\nYour name is: {name}.\nYour responsibility is: {role}\n\nGroup members:\n{members}\n\nRules:\n1. You can read the user's and other AIs' previous messages.\n2. You speak only when the user mentions you with @.\n3. You may critique, add to, or disagree with other AIs, but be specific and useful.\n4. Do not pretend that you are communicating with other AIs in real time. You are responding based on the group chat history.\n5. Answer naturally, like a member in a group chat.", "userPrompt": "Here is the current group chat history:\n\n{history}\n\nNow the user says to @{id}:\n{text}", "noHistory": "No history yet", "defaultAgents": [{"id": "chatgpt", "name": "ChatGPT", "provider": "openai", "model": "gpt-4o-mini", "role": "Structure planning, logical analysis, final synthesis."}, {"id": "deepseek", "name": "DeepSeek", "provider": "deepseek", "model": "deepseek-chat", "role": "Chinese writing, long-text organization, efficient analysis."}, {"id": "claude", "name": "Claude", "provider": "anthropic", "model": "claude-3-5-sonnet-20241022", "role": "Critical feedback, writing refinement, finding weak points."}]};
+const STORAGE_KEY = 'aiqunliao.product.' + I18N.lang;
+const defaultState = {
+  agents: I18N.defaultAgents.map(a => ({...a, apiKey: ''})),
+  messages: []
+};
+let state = loadState();
+let isSending = false;
+
+const els = {
+  agentList: document.getElementById('agentList'),
+  agentForms: document.getElementById('agentForms'),
+  messages: document.getElementById('messages'),
+  input: document.getElementById('input'),
+  sendBtn: document.getElementById('sendBtn'),
+  status: document.getElementById('status'),
+  saveAgentsBtn: document.getElementById('saveAgentsBtn'),
+  saveStatus: document.getElementById('saveStatus'),
+  mentionButtons: document.getElementById('mentionButtons'),
+  clearBtn: document.getElementById('clearBtn'),
+  exportBtn: document.getElementById('exportBtn'),
+  roundBtn: document.getElementById('roundBtn')
+};
+
+function t(key, vars = {}) {
+  let s = I18N[key] || key;
+  Object.entries(vars).forEach(([k, v]) => s = s.replaceAll('{' + k + '}', String(v)));
+  return s;
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return structuredClone(defaultState);
+    const parsed = JSON.parse(raw);
+    return {
+      agents: parsed.agents?.length ? parsed.agents : structuredClone(defaultState.agents),
+      messages: Array.isArray(parsed.messages) ? parsed.messages : []
+    };
+  } catch {
+    return structuredClone(defaultState);
+  }
+}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+function escapeHtml(str) {
+  return String(str).replace(/[&<>'"]/g, s => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+  }[s]));
+}
+function render() {
+  renderAgents();
+  renderForms();
+  renderMessages();
+  renderMentionButtons();
+}
+function renderAgents() {
+  els.agentList.innerHTML = state.agents.map(agent => `
+    <div class="agent-chip">
+      <div class="avatar">${escapeHtml(agent.name.slice(0, 1).toUpperCase())}</div>
+      <div>
+        <strong>${escapeHtml(agent.name)}</strong>
+        <span>@${escapeHtml(agent.id)} · ${escapeHtml(agent.provider)} · ${escapeHtml(agent.model)}</span>
+      </div>
+    </div>
+  `).join('');
+}
+function renderForms() {
+  els.agentForms.innerHTML = state.agents.map((agent, index) => `
+    <div class="form-card" data-index="${index}">
+      <strong>${escapeHtml(agent.name)}</strong>
+      <div class="row">
+        <div>
+          <label>${escapeHtml(t('trigger'))}</label>
+          <input data-field="id" value="${escapeHtml(agent.id)}" placeholder="chatgpt" />
+        </div>
+        <div>
+          <label>${escapeHtml(t('display'))}</label>
+          <input data-field="name" value="${escapeHtml(agent.name)}" placeholder="ChatGPT" />
+        </div>
+      </div>
+      <label>${escapeHtml(t('provider'))}</label>
+      <select data-field="provider">
+        <option value="openai" ${agent.provider === 'openai' ? 'selected' : ''}>OpenAI</option>
+        <option value="deepseek" ${agent.provider === 'deepseek' ? 'selected' : ''}>DeepSeek</option>
+        <option value="anthropic" ${agent.provider === 'anthropic' ? 'selected' : ''}>Anthropic Claude</option>
+      </select>
+      <label>${escapeHtml(t('model'))}</label>
+      <input data-field="model" value="${escapeHtml(agent.model)}" placeholder="${escapeHtml(t('model'))}" />
+      <label>${escapeHtml(t('apiKey'))}</label>
+      <input data-field="apiKey" type="password" value="${escapeHtml(agent.apiKey)}" placeholder="${escapeHtml(t('apiKeyPH'))}" />
+      <label>${escapeHtml(t('role'))}</label>
+      <input data-field="role" value="${escapeHtml(agent.role)}" placeholder="${escapeHtml(t('rolePH'))}" />
+    </div>
+  `).join('');
+}
+function renderMentionButtons() {
+  els.mentionButtons.innerHTML = state.agents.map(agent => `
+    <button class="mention" data-mention="@${escapeHtml(agent.id)}">@${escapeHtml(agent.name)}</button>
+  `).join('');
+}
+function renderMessages() {
+  if (!state.messages.length) {
+    els.messages.innerHTML = `
+      <div class="empty">
+        <div class="empty-card">
+          <h3>${escapeHtml(t('emptyTitle'))}</h3>
+          <p>${escapeHtml(t('empty1'))} <code>${escapeHtml(t('emptyEx1'))}</code></p>
+          <p>${escapeHtml(t('empty2'))} <code>${escapeHtml(t('emptyEx2'))}</code></p>
+          <p>${escapeHtml(t('empty3'))}</p>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  els.messages.innerHTML = state.messages.map(msg => {
+    const isUser = msg.role === 'user';
+    const avatar = isUser ? escapeHtml(t('me').slice(0, 1)) : escapeHtml((msg.name || 'AI').slice(0, 1).toUpperCase());
+    return `
+      <div class="msg ${isUser ? 'user' : 'ai'}">
+        <div class="avatar">${avatar}</div>
+        <div class="bubble-wrap">
+          <div class="sender">${escapeHtml(msg.name || (isUser ? t('me') : 'AI'))}</div>
+          <div class="bubble">${escapeHtml(msg.content)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  els.messages.scrollTop = els.messages.scrollHeight;
+}
+function setStatus(text, loading = false) {
+  els.status.innerHTML = loading ? `<span class="loading"></span>${escapeHtml(text)}` : escapeHtml(text || '');
+}
+function findMention(text) {
+  const normalized = text.trim().toLowerCase();
+  return state.agents.find(agent => normalized.startsWith('@' + agent.id.toLowerCase()));
+}
+function stripMention(text, agent) {
+  return text.trim().replace(new RegExp('^@' + agent.id + '\\s*', 'i'), '').trim();
+}
+function buildGroupContext(targetAgent, userText) {
+  const history = state.messages.slice(-30).map(m => `${m.name}: ${m.content}`).join('\n\n');
+  const memberList = state.agents.map(a => `- ${a.name}（@${a.id}）：${a.role}`).join('\n');
+  return [
+    {
+      role: 'system',
+      content: t('sysPrompt', {name: targetAgent.name, role: targetAgent.role, members: memberList})
+    },
+    {
+      role: 'user',
+      content: t('userPrompt', {history: history || t('noHistory'), id: targetAgent.id, text: userText})
+    }
+  ];
+}
+async function callAgent(agent, userText) {
+  if (!agent.apiKey) throw new Error(t('noKey', {name: agent.name}));
+  const messages = buildGroupContext(agent, userText);
+
+  if (agent.provider === 'openai' || agent.provider === 'deepseek') {
+    const baseUrl = agent.provider === 'openai'
+      ? 'https://api.openai.com/v1/chat/completions'
+      : 'https://api.deepseek.com/chat/completions';
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${agent.apiKey}`},
+      body: JSON.stringify({model: agent.model, messages, temperature: 0.7})
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`${agent.name}: ${res.status} ${errText.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content || t('noContent');
+  }
+
+  if (agent.provider === 'anthropic') {
+    const system = messages[0].content;
+    const user = messages[1].content;
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'x-api-key': agent.apiKey, 'anthropic-version': '2023-06-01'},
+      body: JSON.stringify({
+        model: agent.model, max_tokens: 2048, temperature: 0.7, system,
+        messages: [{ role: 'user', content: user }]
+      })
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`${agent.name}: ${res.status} ${errText.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    return data.content?.map(x => x.text).join('\n') || t('noContent');
+  }
+
+  throw new Error(t('unsupported', {provider: agent.provider}));
+}
+async function sendMessage() {
+  if (isSending) return;
+  const text = els.input.value.trim();
+  if (!text) return;
+  const agent = findMention(text);
+  if (!agent) { setStatus(t('noMention')); return; }
+  const userText = stripMention(text, agent);
+  if (!userText) { setStatus(t('noText')); return; }
+
+  state.messages.push({ role: 'user', name: t('me'), content: text, createdAt: Date.now() });
+  els.input.value = '';
+  saveState();
+  renderMessages();
+
+  isSending = true;
+  setStatus(t('thinking', {name: agent.name}), true);
+  try {
+    const reply = await callAgent(agent, userText);
+    state.messages.push({ role: 'assistant', name: agent.name, agentId: agent.id, content: reply, createdAt: Date.now() });
+    saveState();
+    renderMessages();
+    setStatus('');
+  } catch (err) {
+    state.messages.push({ role: 'assistant', name: t('system'), content: err.message, createdAt: Date.now() });
+    saveState();
+    renderMessages();
+    setStatus(t('failed'));
+  } finally {
+    isSending = false;
+  }
+}
+async function runRoundtable() {
+  if (isSending) return;
+  const text = els.input.value.trim();
+  if (!text) { setStatus(t('roundNeed')); return; }
+  state.messages.push({ role: 'user', name: t('me'), content: t('roundUser', {text}), createdAt: Date.now() });
+  els.input.value = '';
+  saveState();
+  renderMessages();
+
+  isSending = true;
+  try {
+    for (const agent of state.agents) {
+      setStatus(t('roundThinking', {name: agent.name}), true);
+      const reply = await callAgent(agent, t('roundPrompt', {text}));
+      state.messages.push({ role: 'assistant', name: agent.name, agentId: agent.id, content: reply, createdAt: Date.now() });
+      saveState();
+      renderMessages();
+    }
+    setStatus(t('roundDone'));
+  } catch (err) {
+    state.messages.push({ role: 'assistant', name: t('system'), content: err.message, createdAt: Date.now() });
+    saveState();
+    renderMessages();
+    setStatus(t('roundFailed'));
+  } finally {
+    isSending = false;
+  }
+}
+function saveAgentForms() {
+  const cards = [...els.agentForms.querySelectorAll('.form-card')];
+  state.agents = cards.map(card => {
+    const index = Number(card.dataset.index);
+    const original = state.agents[index];
+    const get = field => card.querySelector(`[data-field="${field}"]`).value.trim();
+    return {
+      ...original,
+      id: get('id').replace(/^@/, '').toLowerCase() || original.id,
+      name: get('name') || original.name,
+      provider: get('provider') || original.provider,
+      model: get('model') || original.model,
+      apiKey: get('apiKey'),
+      role: get('role') || original.role
+    };
+  });
+  saveState();
+  render();
+  els.saveStatus.textContent = t('saved');
+  setTimeout(() => els.saveStatus.textContent = '', 1600);
+}
+function exportMarkdown() {
+  const lines = ['# ' + I18N.title, ''];
+  for (const msg of state.messages) {
+    lines.push(`## ${msg.name}`, '', msg.content, '');
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${I18N.downloadName}-${new Date().toISOString().slice(0,10)}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+els.sendBtn.addEventListener('click', sendMessage);
+els.roundBtn.addEventListener('click', runRoundtable);
+els.saveAgentsBtn.addEventListener('click', saveAgentForms);
+els.exportBtn.addEventListener('click', exportMarkdown);
+els.clearBtn.addEventListener('click', () => {
+  if (!confirm(t('confirmClear'))) return;
+  state.messages = [];
+  saveState();
+  renderMessages();
+});
+els.mentionButtons.addEventListener('click', e => {
+  const btn = e.target.closest('[data-mention]');
+  if (!btn) return;
+  const mention = btn.dataset.mention;
+  const current = els.input.value.trim();
+  els.input.value = current ? `${mention} ${current}` : `${mention} `;
+  els.input.focus();
+});
+els.input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+render();
+</script>
+</body>
+</html>
